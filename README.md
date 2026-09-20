@@ -17,6 +17,8 @@ the KDE config file `~/.config/dolphin-btrfsrc`:
 ```ini
 [BtrfsSnapshots]
 SnapshotDirectory=/btrbk_snapshots
+# Set true to compare all descendants instead of direct children only.
+RecursiveDirectoryVersions=false
 ```
 
 The configured path must be absolute. `XDG_CONFIG_HOME` is honored when it is
@@ -37,8 +39,10 @@ are looked up in the `ROOT.*` snapshots. Only snapshots containing the
 selected path are shown. Snapshot entries with the same size and modification
 time are collapsed to the newest entry, and entries matching the live item are
 omitted. For directories, the comparison includes recursive child paths,
-types, sizes, and modification times. This automatically removes redundant
-snapshots regardless of how long the item has remained unchanged.
+types, sizes, and modification times when `RecursiveDirectoryVersions=true`.
+By default it compares direct children only for responsive context menus. This
+automatically removes redundant snapshots regardless of how long the item has
+remained unchanged.
 
 Each snapshot has an **Open** action and a **Restore** action. Restore creates
 a new sibling copy, for example `file.home.20260919T1901`, using a required
