@@ -37,7 +37,7 @@ private:
   void restoreSnapshot(const QString &sourcePath,
                        const QString &destinationPath);
 
-  mutable QMenu *m_snapshotMenu = nullptr;
+  mutable QList<QMenu *> m_snapshotMenus;
 };
 
 #endif

@@ -173,15 +173,11 @@ FileViewBtrfsSnapshotsPlugin::FileViewBtrfsSnapshotsPlugin(
     QObject *parent, const QList<QVariant> &args)
     : KVersionControlPlugin(parent) {
   Q_UNUSED(args)
-
-  m_snapshotMenu = new QMenu(qobject_cast<QWidget *>(parent));
-  m_snapshotMenu->setTitle(i18nc("@title:menu", "Btrfs Snapshots"));
-  m_snapshotMenu->setIcon(QIcon::fromTheme(QStringLiteral("drive-harddisk")));
 }
 
 FileViewBtrfsSnapshotsPlugin::~FileViewBtrfsSnapshotsPlugin() {
-  if (m_snapshotMenu && !m_snapshotMenu->parent()) {
-    delete m_snapshotMenu;
+  for (QMenu *menu : m_snapshotMenus) {
+    delete menu;
   }
 }
 
@@ -281,14 +277,10 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
   const bool liveIsDirectory = liveInfo.isDir();
   const FileVersion liveVersion{liveInfo.size(), liveInfo.lastModified()};
   QList<FileVersion> seenVersions;
-  const QList<QAction *> oldActions = m_snapshotMenu->actions();
-  m_snapshotMenu->clear();
-  for (QAction *action : oldActions) {
-    // Dolphin may still be unwinding the previous context menu when it asks
-    // for actions again. Defer destruction of the QWidgetAction and its
-    // widget tree until control returns to the event loop.
-    action->deleteLater();
-  }
+
+  auto *snapshotPanel = new QMenu(i18nc("@title:menu", "Btrfs Snapshots"));
+  snapshotPanel->setIcon(QIcon::fromTheme(QStringLiteral("drive-harddisk")));
+  m_snapshotMenus.append(snapshotPanel);
 
   auto *scrollArea = new QScrollArea;
   scrollArea->setFrameShape(QFrame::NoFrame);
@@ -378,11 +370,11 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
 
   scrollLayout->addStretch();
   scrollArea->setWidget(scrollWidget);
-  auto *scrollAction = new QWidgetAction(m_snapshotMenu);
+  auto *scrollAction = new QWidgetAction(snapshotPanel);
   scrollAction->setDefaultWidget(scrollArea);
-  m_snapshotMenu->addAction(scrollAction);
+  snapshotPanel->addAction(scrollAction);
 
-  return {m_snapshotMenu->menuAction()};
+  return {snapshotPanel->menuAction()};
 }
 
 #include "fileviewbtrfssnapshotsplugin.moc"
