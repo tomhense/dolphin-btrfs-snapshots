@@ -11,6 +11,10 @@ The initial layout is intentionally limited to:
 /btrbk_snapshots/ROOT.YYYYMMDDTHHMM
 ```
 
+The snapshot directory defaults to `/btrbk_snapshots` and can be changed via
+**Btrfs Snapshots → Configure Btrfs Snapshots…** in Dolphin. The configured
+path must be absolute.
+
 `/home/...` is looked up in the `home.*` snapshots; all other absolute paths
 are looked up in the `ROOT.*` snapshots. Only snapshots containing the
 selected path are shown. Snapshot entries with the same size and modification

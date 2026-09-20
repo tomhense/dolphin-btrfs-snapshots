@@ -13,7 +13,7 @@ include(KDECMakeSettings)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 
 find_package(Qt6 6.7.0 REQUIRED COMPONENTS Core Widgets)
-find_package(KF6 6.0.0 REQUIRED COMPONENTS I18n KIO)
+find_package(KF6 6.0.0 REQUIRED COMPONENTS Config I18n KIO)
 find_package(DolphinVcs REQUIRED)
 
 add_subdirectory(plugin)
