@@ -39,6 +39,9 @@ QString configuredSnapshotDirectory() {
 struct Snapshot {
   QString name;
   QString timestamp;
+  QString rootPath;
+  QString mountPath;
+  QString sortKey;
 };
 
 struct FileVersion {
@@ -50,7 +53,7 @@ bool sameVersion(const FileVersion &left, const FileVersion &right) {
   return left.size == right.size && left.modified == right.modified;
 }
 
-QList<Snapshot> availableSnapshots(const QString &snapshotDirectoryPath) {
+QList<Snapshot> btrbkSnapshots(const QString &snapshotDirectoryPath) {
   const QDir directory(snapshotDirectoryPath);
   const QRegularExpression pattern(
       QStringLiteral("^(home|ROOT)\\.(\\d{8}T\\d{4})$"));
@@ -61,7 +64,11 @@ QList<Snapshot> availableSnapshots(const QString &snapshotDirectoryPath) {
   for (const QString &entry : entries) {
     const QRegularExpressionMatch match = pattern.match(entry);
     if (match.hasMatch()) {
-      snapshots.append({entry, match.captured(2)});
+      const bool homeSnapshot = entry.startsWith(QStringLiteral("home."));
+      snapshots.append(
+          {entry, match.captured(2), directory.filePath(entry),
+           homeSnapshot ? QStringLiteral("/home") : QStringLiteral("/"),
+           match.captured(2)});
     }
   }
 
@@ -70,6 +77,78 @@ QList<Snapshot> availableSnapshots(const QString &snapshotDirectoryPath) {
               return left.timestamp > right.timestamp;
             });
   return snapshots;
+}
+
+QString snapperMountForPath(const QString &path) {
+  QFileInfo pathInfo(path);
+  QString candidate =
+      pathInfo.isDir() ? pathInfo.absoluteFilePath() : pathInfo.absolutePath();
+
+  while (true) {
+    if (QFileInfo(QDir(candidate).filePath(QStringLiteral(".snapshots")))
+            .isDir()) {
+      return candidate;
+    }
+
+    const QString parent = QFileInfo(candidate).absolutePath();
+    if (parent == candidate) {
+      return {};
+    }
+    candidate = parent;
+  }
+}
+
+QList<Snapshot> snapperSnapshots(const QString &path) {
+  const QString mountPath = snapperMountForPath(path);
+  if (mountPath.isEmpty()) {
+    return {};
+  }
+
+  const QDir snapshotDirectory(
+      QDir(mountPath).filePath(QStringLiteral(".snapshots")));
+  const QRegularExpression idPattern(QStringLiteral("^\\d+$"));
+  QList<Snapshot> snapshots;
+  const QStringList entries = snapshotDirectory.entryList(
+      QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+  for (const QString &entry : entries) {
+    if (!idPattern.match(entry).hasMatch()) {
+      continue;
+    }
+
+    const QString rootPath =
+        snapshotDirectory.filePath(entry + QStringLiteral("/snapshot"));
+    if (!QFileInfo(rootPath).isDir()) {
+      continue;
+    }
+
+    const QString identifier = QStringLiteral("snapper-") + entry;
+    snapshots.append(
+        {identifier, QStringLiteral("Snapshot ") + entry, rootPath, mountPath,
+         QStringLiteral("snapper-") +
+             QString(qMax(0, 20 - entry.size()), QLatin1Char('0')) + entry});
+  }
+  return snapshots;
+}
+
+QList<Snapshot> availableSnapshots(const QString &path,
+                                   const QString &snapshotDirectoryPath) {
+  QList<Snapshot> snapshots = btrbkSnapshots(snapshotDirectoryPath);
+  snapshots.append(snapperSnapshots(path));
+  std::sort(snapshots.begin(), snapshots.end(),
+            [](const Snapshot &left, const Snapshot &right) {
+              return left.sortKey > right.sortKey;
+            });
+  return snapshots;
+}
+
+QString snapshotPath(const QString &path, const Snapshot &snapshot) {
+  QString relativePath = snapshot.mountPath == QStringLiteral("/")
+                             ? path
+                             : path.mid(snapshot.mountPath.size());
+  if (relativePath.startsWith(QLatin1Char('/'))) {
+    relativePath.remove(0, 1);
+  }
+  return QDir(snapshot.rootPath).filePath(relativePath);
 }
 
 QString displayTimestamp(const QString &timestamp) {
@@ -134,19 +213,6 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::versionControlActions(
 QList<QAction *> FileViewBtrfsSnapshotsPlugin::outOfVersionControlActions(
     const KFileItemList &items) const {
   return snapshotActions(items);
-}
-
-QString
-FileViewBtrfsSnapshotsPlugin::snapshotPath(const QString &path,
-                                           const QString &snapshotName) const {
-  // btrbk stores the home subvolume without the /home component. The ROOT
-  // subvolume contains the complete filesystem hierarchy.
-  const bool isHomeSubvolume = path == QStringLiteral("/home") ||
-                               path.startsWith(QStringLiteral("/home/"));
-  const QString relativePath =
-      isHomeSubvolume ? path.mid(QStringLiteral("/home").size()) : path;
-  return QDir(configuredSnapshotDirectory())
-      .filePath(snapshotName + relativePath);
 }
 
 QString
@@ -217,8 +283,8 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
   }
 
   for (const Snapshot &snapshot :
-       availableSnapshots(configuredSnapshotDirectory())) {
-    const QString historicalPath = snapshotPath(path, snapshot.name);
+       availableSnapshots(path, configuredSnapshotDirectory())) {
+    const QString historicalPath = ::snapshotPath(path, snapshot);
     const QFileInfo snapshotInfo(historicalPath);
     if (!snapshotInfo.exists()) {
       continue;

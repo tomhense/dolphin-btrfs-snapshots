@@ -22,6 +22,16 @@ SnapshotDirectory=/btrbk_snapshots
 The configured path must be absolute. `XDG_CONFIG_HOME` is honored when it is
 set.
 
+In addition to the configured btrbk layout, the plugin automatically detects
+mounted Snapper snapshots below the nearest live subvolume mount:
+
+```text
+<mount>/.snapshots/<id>/snapshot
+```
+
+For example, `/home/.snapshots/42/snapshot/tom/file.txt` is considered a
+version of `/home/tom/file.txt`. Snapper snapshot IDs are shown in the menu.
+
 `/home/...` is looked up in the `home.*` snapshots; all other absolute paths
 are looked up in the `ROOT.*` snapshots. Only snapshots containing the
 selected path are shown. Snapshot entries with the same size and modification
