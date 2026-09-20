@@ -18,10 +18,10 @@
 #include <QFileInfo>
 #include <QMenu>
 #include <QProcess>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QScrollArea>
 #include <QSizePolicy>
-#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidgetAction>
@@ -355,17 +355,23 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
             });
 
     snapshotMenu->setDefaultAction(openAction);
-    auto *snapshotButton = new QToolButton(scrollWidget);
+    auto *snapshotButton = new QPushButton(scrollWidget);
     snapshotButton->setText(i18nc("@title:menu", "%1 (%2)",
                                   displayTimestamp(snapshot.timestamp),
                                   snapshot.name));
     snapshotButton->setIcon(
         QIcon::fromTheme(QStringLiteral("document-open-recent")));
-    snapshotButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    snapshotButton->setFlat(true);
+    snapshotButton->setFocusPolicy(Qt::NoFocus);
+    snapshotButton->setStyleSheet(
+        QStringLiteral("QPushButton { text-align: left; padding: 6px; }"));
     snapshotButton->setSizePolicy(QSizePolicy::Expanding,
                                   QSizePolicy::Preferred);
-    snapshotButton->setMenu(snapshotMenu);
-    snapshotButton->setPopupMode(QToolButton::InstantPopup);
+    connect(snapshotButton, &QPushButton::clicked, snapshotMenu,
+            [snapshotButton, snapshotMenu]() {
+              snapshotMenu->popup(snapshotButton->mapToGlobal(
+                  QPoint(snapshotButton->width(), 0)));
+            });
     scrollLayout->addWidget(snapshotButton);
   }
 
