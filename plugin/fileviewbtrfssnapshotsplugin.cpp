@@ -284,7 +284,10 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
   const QList<QAction *> oldActions = m_snapshotMenu->actions();
   m_snapshotMenu->clear();
   for (QAction *action : oldActions) {
-    delete action;
+    // Dolphin may still be unwinding the previous context menu when it asks
+    // for actions again. Defer destruction of the QWidgetAction and its
+    // widget tree until control returns to the event loop.
+    action->deleteLater();
   }
 
   auto *scrollArea = new QScrollArea;
