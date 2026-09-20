@@ -370,6 +370,8 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
 
   scrollLayout->addStretch();
   scrollArea->setWidget(scrollWidget);
+  scrollWidget->adjustSize();
+  scrollArea->setMinimumHeight(qMin(400, scrollWidget->sizeHint().height()));
   auto *scrollAction = new QWidgetAction(snapshotPanel);
   scrollAction->setDefaultWidget(scrollArea);
   snapshotPanel->addAction(scrollAction);
