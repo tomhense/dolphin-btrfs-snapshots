@@ -282,14 +282,9 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
   const FileVersion liveVersion{liveInfo.size(), liveInfo.lastModified()};
   QList<FileVersion> seenVersions;
   const QList<QAction *> oldActions = m_snapshotMenu->actions();
-  const QList<QMenu *> oldMenus = m_snapshotMenu->findChildren<QMenu *>(
-      QString(), Qt::FindDirectChildrenOnly);
   m_snapshotMenu->clear();
   for (QAction *action : oldActions) {
     delete action;
-  }
-  for (QMenu *menu : oldMenus) {
-    delete menu;
   }
 
   auto *scrollArea = new QScrollArea;
@@ -329,10 +324,20 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
       seenVersions.append(snapshotVersion);
     }
 
-    auto *snapshotMenu =
-        new QMenu(i18nc("@title:menu", "%1 (%2)",
-                        displayTimestamp(snapshot.timestamp), snapshot.name),
-                  m_snapshotMenu);
+    auto *snapshotButton = new QPushButton(scrollWidget);
+    snapshotButton->setText(i18nc("@title:menu", "%1 (%2)",
+                                  displayTimestamp(snapshot.timestamp),
+                                  snapshot.name));
+    snapshotButton->setIcon(
+        QIcon::fromTheme(QStringLiteral("document-open-recent")));
+    snapshotButton->setFlat(true);
+    snapshotButton->setFocusPolicy(Qt::NoFocus);
+    snapshotButton->setStyleSheet(
+        QStringLiteral("QPushButton { text-align: left; padding: 6px; }"));
+    snapshotButton->setSizePolicy(QSizePolicy::Expanding,
+                                  QSizePolicy::Preferred);
+
+    auto *snapshotMenu = new QMenu(snapshotButton->text(), snapshotButton);
     snapshotMenu->setIcon(
         QIcon::fromTheme(QStringLiteral("document-open-recent")));
 
@@ -355,18 +360,6 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
             });
 
     snapshotMenu->setDefaultAction(openAction);
-    auto *snapshotButton = new QPushButton(scrollWidget);
-    snapshotButton->setText(i18nc("@title:menu", "%1 (%2)",
-                                  displayTimestamp(snapshot.timestamp),
-                                  snapshot.name));
-    snapshotButton->setIcon(
-        QIcon::fromTheme(QStringLiteral("document-open-recent")));
-    snapshotButton->setFlat(true);
-    snapshotButton->setFocusPolicy(Qt::NoFocus);
-    snapshotButton->setStyleSheet(
-        QStringLiteral("QPushButton { text-align: left; padding: 6px; }"));
-    snapshotButton->setSizePolicy(QSizePolicy::Expanding,
-                                  QSizePolicy::Preferred);
     connect(snapshotButton, &QPushButton::clicked, snapshotMenu,
             [snapshotButton, snapshotMenu]() {
               snapshotMenu->popup(snapshotButton->mapToGlobal(
