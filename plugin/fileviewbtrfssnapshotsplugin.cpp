@@ -13,10 +13,8 @@
 #include <KSharedConfig>
 
 #include <QAction>
-#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
-#include <QDirIterator>
 #include <QFileInfo>
 #include <QMenu>
 #include <QProcess>
@@ -29,7 +27,6 @@ namespace {
 constexpr auto snapshotDirectory = "/btrbk_snapshots";
 constexpr auto configGroup = "BtrfsSnapshots";
 constexpr auto configKey = "SnapshotDirectory";
-constexpr auto recursiveVersionsKey = "RecursiveDirectoryVersions";
 
 QString configuredSnapshotDirectory() {
   const KConfigGroup group(
@@ -37,13 +34,6 @@ QString configuredSnapshotDirectory() {
       QString::fromLatin1(configGroup));
   return group.readEntry(QString::fromLatin1(configKey),
                          QString::fromLatin1(snapshotDirectory));
-}
-
-bool recursiveDirectoryVersions() {
-  const KConfigGroup group(
-      KSharedConfig::openConfig(QStringLiteral("dolphin-btrfsrc")),
-      QString::fromLatin1(configGroup));
-  return group.readEntry(QString::fromLatin1(recursiveVersionsKey), false);
 }
 
 struct Snapshot {
@@ -55,65 +45,12 @@ struct Snapshot {
 };
 
 struct FileVersion {
-  QByteArray fingerprint;
   qint64 size;
   QDateTime modified;
-  bool directory;
 };
 
 bool sameVersion(const FileVersion &left, const FileVersion &right) {
-  if (left.directory || right.directory) {
-    return left.directory && right.directory &&
-           left.fingerprint == right.fingerprint;
-  }
   return left.size == right.size && left.modified == right.modified;
-}
-
-FileVersion versionFor(const QFileInfo &info, bool recursive) {
-  if (!info.isDir()) {
-    return {{}, info.size(), info.lastModified(), false};
-  }
-
-  QStringList metadata;
-  const QDir root(info.absoluteFilePath());
-  metadata.append(QStringLiteral(".\0dir\0%1")
-                      .arg(info.lastModified().toMSecsSinceEpoch()));
-
-  const auto addChild = [&metadata, &root](const QFileInfo &child) {
-    const QString relativePath =
-        root.relativeFilePath(child.absoluteFilePath());
-    const QString type = child.isDir()       ? QStringLiteral("dir")
-                         : child.isSymLink() ? QStringLiteral("link")
-                                             : QStringLiteral("file");
-    metadata.append(QStringLiteral("%1\0%2\0%3\0%4")
-                        .arg(relativePath)
-                        .arg(type)
-                        .arg(child.size())
-                        .arg(child.lastModified().toMSecsSinceEpoch()));
-  };
-
-  if (recursive) {
-    QDirIterator iterator(info.absoluteFilePath(),
-                          QDir::AllEntries | QDir::NoDotAndDotDot,
-                          QDirIterator::Subdirectories);
-    while (iterator.hasNext()) {
-      iterator.next();
-      addChild(iterator.fileInfo());
-    }
-  } else {
-    for (const QFileInfo &child : root.entryInfoList(
-             QDir::AllEntries | QDir::NoDotAndDotDot, QDir::Name)) {
-      addChild(child);
-    }
-  }
-
-  std::sort(metadata.begin(), metadata.end());
-  QCryptographicHash hash(QCryptographicHash::Sha256);
-  for (const QString &entry : metadata) {
-    hash.addData(entry.toUtf8());
-    hash.addData("\n");
-  }
-  return {hash.result(), 0, {}, true};
 }
 
 QList<Snapshot> btrbkSnapshots(const QString &snapshotDirectoryPath) {
@@ -336,8 +273,8 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
   const QString path = items.first().localPath();
   const QFileInfo liveInfo(path);
   const bool hasLiveVersion = liveInfo.exists();
-  const bool recursive = recursiveDirectoryVersions();
-  const FileVersion liveVersion = versionFor(liveInfo, recursive);
+  const bool liveIsDirectory = liveInfo.isDir();
+  const FileVersion liveVersion{liveInfo.size(), liveInfo.lastModified()};
   QList<FileVersion> seenVersions;
   const QList<QMenu *> oldMenus = m_snapshotMenu->findChildren<QMenu *>(
       QString(), Qt::FindDirectChildrenOnly);
@@ -354,18 +291,21 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
       continue;
     }
 
-    const FileVersion snapshotVersion = versionFor(snapshotInfo, recursive);
-    if (hasLiveVersion && sameVersion(snapshotVersion, liveVersion)) {
-      continue;
-    }
+    if (!liveIsDirectory && !snapshotInfo.isDir()) {
+      const FileVersion snapshotVersion{snapshotInfo.size(),
+                                        snapshotInfo.lastModified()};
+      if (hasLiveVersion && sameVersion(snapshotVersion, liveVersion)) {
+        continue;
+      }
 
-    if (std::any_of(seenVersions.cbegin(), seenVersions.cend(),
-                    [&snapshotVersion](const FileVersion &seenVersion) {
-                      return sameVersion(seenVersion, snapshotVersion);
-                    })) {
-      continue;
+      if (std::any_of(seenVersions.cbegin(), seenVersions.cend(),
+                      [&snapshotVersion](const FileVersion &seenVersion) {
+                        return sameVersion(seenVersion, snapshotVersion);
+                      })) {
+        continue;
+      }
+      seenVersions.append(snapshotVersion);
     }
-    seenVersions.append(snapshotVersion);
 
     auto *snapshotMenu =
         new QMenu(i18nc("@title:menu", "%1 (%2)",
