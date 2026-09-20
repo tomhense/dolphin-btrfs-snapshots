@@ -36,8 +36,9 @@ version of `/home/tom/file.txt`. Snapper snapshot IDs are shown in the menu.
 are looked up in the `ROOT.*` snapshots. Only snapshots containing the
 selected path are shown. Snapshot entries with the same size and modification
 time are collapsed to the newest entry, and entries matching the live item are
-omitted. This automatically removes redundant snapshots regardless of how long
-the item has remained unchanged.
+omitted. For directories, the comparison includes recursive child paths,
+types, sizes, and modification times. This automatically removes redundant
+snapshots regardless of how long the item has remained unchanged.
 
 Each snapshot has an **Open** action and a **Restore** action. Restore creates
 a new sibling copy, for example `file.home.20260919T1901`, using a required
