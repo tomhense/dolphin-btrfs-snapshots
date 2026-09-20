@@ -11,6 +11,7 @@
 #include <KPluginFactory>
 
 #include <QAction>
+#include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QMenu>
@@ -26,6 +27,15 @@ struct Snapshot {
   QString name;
   QString timestamp;
 };
+
+struct FileVersion {
+  qint64 size;
+  QDateTime modified;
+};
+
+bool sameVersion(const FileVersion &left, const FileVersion &right) {
+  return left.size == right.size && left.modified == right.modified;
+}
 
 QList<Snapshot> availableSnapshots() {
   const QDir directory(QString::fromLatin1(snapshotDirectory));
@@ -135,6 +145,10 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
   }
 
   const QString path = items.first().localPath();
+  const QFileInfo liveInfo(path);
+  const bool hasLiveVersion = liveInfo.exists();
+  const FileVersion liveVersion{liveInfo.size(), liveInfo.lastModified()};
+  QList<FileVersion> seenVersions;
   const QList<QAction *> oldActions = m_snapshotMenu->actions();
   m_snapshotMenu->clear();
   for (QAction *action : oldActions) {
@@ -143,9 +157,24 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
 
   for (const Snapshot &snapshot : availableSnapshots()) {
     const QString historicalPath = snapshotPath(path, snapshot.name);
-    if (!QFileInfo::exists(historicalPath)) {
+    const QFileInfo snapshotInfo(historicalPath);
+    if (!snapshotInfo.exists()) {
       continue;
     }
+
+    const FileVersion snapshotVersion{snapshotInfo.size(),
+                                      snapshotInfo.lastModified()};
+    if (hasLiveVersion && sameVersion(snapshotVersion, liveVersion)) {
+      continue;
+    }
+
+    if (std::any_of(seenVersions.cbegin(), seenVersions.cend(),
+                    [&snapshotVersion](const FileVersion &seenVersion) {
+                      return sameVersion(seenVersion, snapshotVersion);
+                    })) {
+      continue;
+    }
+    seenVersions.append(snapshotVersion);
 
     auto *action = new QAction(m_snapshotMenu);
     action->setText(i18nc("@action:inmenu", "%1 (%2)",

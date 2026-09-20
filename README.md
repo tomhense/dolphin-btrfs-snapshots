@@ -13,7 +13,10 @@ The initial layout is intentionally limited to:
 
 `/home/...` is looked up in the `home.*` snapshots; all other absolute paths
 are looked up in the `ROOT.*` snapshots. Only snapshots containing the
-selected path are shown.
+selected path are shown. Snapshot entries with the same size and modification
+time are collapsed to the newest entry, and entries matching the live item are
+omitted. This automatically removes redundant snapshots regardless of how long
+the item has remained unchanged.
 
 Build and install with the normal KDE CMake workflow:
 
