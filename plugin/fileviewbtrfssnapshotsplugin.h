@@ -34,6 +34,9 @@ public:
 private:
   QList<QAction *> snapshotActions(const KFileItemList &items) const;
   QString snapshotPath(const QString &path, const QString &snapshotName) const;
+  QString restorePath(const QString &path, const QString &snapshotName) const;
+  void restoreSnapshot(const QString &sourcePath,
+                       const QString &destinationPath);
 
   mutable QMenu *m_snapshotMenu = nullptr;
 };

@@ -18,6 +18,10 @@ time are collapsed to the newest entry, and entries matching the live item are
 omitted. This automatically removes redundant snapshots regardless of how long
 the item has remained unchanged.
 
+Each snapshot has an **Open** action and a **Restore** action. Restore creates
+a new sibling copy, for example `file.home.20260919T1901`, using a required
+reflink; it never overwrites the original or an existing restore copy.
+
 Build and install with the normal KDE CMake workflow:
 
 ```sh

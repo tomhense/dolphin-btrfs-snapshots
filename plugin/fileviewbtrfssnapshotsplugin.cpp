@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QMenu>
+#include <QProcess>
 #include <QRegularExpression>
 #include <QUrl>
 
@@ -136,6 +137,53 @@ FileViewBtrfsSnapshotsPlugin::snapshotPath(const QString &path,
       .filePath(snapshotName + relativePath);
 }
 
+QString
+FileViewBtrfsSnapshotsPlugin::restorePath(const QString &path,
+                                          const QString &snapshotName) const {
+  const QFileInfo liveInfo(path);
+  const QString basePath = liveInfo.absoluteDir().filePath(
+      liveInfo.fileName() + QLatin1Char('.') + snapshotName);
+
+  QString destinationPath = basePath;
+  for (int suffix = 1; QFileInfo::exists(destinationPath); ++suffix) {
+    destinationPath = basePath + QLatin1Char('.') + QString::number(suffix);
+  }
+  return destinationPath;
+}
+
+void FileViewBtrfsSnapshotsPlugin::restoreSnapshot(
+    const QString &sourcePath, const QString &destinationPath) {
+  auto *process = new QProcess(this);
+  connect(process, &QProcess::errorOccurred, this,
+          [this, process, destinationPath](QProcess::ProcessError error) {
+            if (error == QProcess::FailedToStart) {
+              Q_EMIT errorMessage(i18nc("@info:status",
+                                        "Could not restore the snapshot to %1.",
+                                        destinationPath));
+              process->deleteLater();
+            }
+          });
+  connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+          this,
+          [this, process, destinationPath](int exitCode,
+                                           QProcess::ExitStatus exitStatus) {
+            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+              Q_EMIT operationCompletedMessage(i18nc(
+                  "@info:status", "Restored snapshot to %1.", destinationPath));
+            } else {
+              Q_EMIT errorMessage(i18nc("@info:status",
+                                        "Could not restore the snapshot to %1.",
+                                        destinationPath));
+            }
+            process->deleteLater();
+          });
+
+  process->start(QStringLiteral("cp"),
+                 {QStringLiteral("--archive"),
+                  QStringLiteral("--reflink=always"),
+                  QStringLiteral("--no-clobber"), sourcePath, destinationPath});
+}
+
 QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
     const KFileItemList &items) const {
   // A single target keeps every menu entry unambiguous. It also avoids
@@ -149,10 +197,11 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
   const bool hasLiveVersion = liveInfo.exists();
   const FileVersion liveVersion{liveInfo.size(), liveInfo.lastModified()};
   QList<FileVersion> seenVersions;
-  const QList<QAction *> oldActions = m_snapshotMenu->actions();
+  const QList<QMenu *> oldMenus = m_snapshotMenu->findChildren<QMenu *>(
+      QString(), Qt::FindDirectChildrenOnly);
   m_snapshotMenu->clear();
-  for (QAction *action : oldActions) {
-    delete action;
+  for (QMenu *menu : oldMenus) {
+    delete menu;
   }
 
   for (const Snapshot &snapshot : availableSnapshots()) {
@@ -176,16 +225,33 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
     }
     seenVersions.append(snapshotVersion);
 
-    auto *action = new QAction(m_snapshotMenu);
-    action->setText(i18nc("@action:inmenu", "%1 (%2)",
-                          displayTimestamp(snapshot.timestamp), snapshot.name));
-    action->setIcon(QIcon::fromTheme(QStringLiteral("document-open-recent")));
-    action->setToolTip(historicalPath);
-    connect(action, &QAction::triggered, this, [historicalPath]() {
+    auto *snapshotMenu =
+        new QMenu(i18nc("@title:menu", "%1 (%2)",
+                        displayTimestamp(snapshot.timestamp), snapshot.name),
+                  m_snapshotMenu);
+    snapshotMenu->setIcon(
+        QIcon::fromTheme(QStringLiteral("document-open-recent")));
+
+    auto *openAction = snapshotMenu->addAction(
+        QIcon::fromTheme(QStringLiteral("document-open")),
+        i18nc("@action:inmenu", "Open"));
+    connect(openAction, &QAction::triggered, this, [historicalPath]() {
       auto *job = new KIO::OpenUrlJob(QUrl::fromLocalFile(historicalPath));
       job->start();
     });
-    m_snapshotMenu->addAction(action);
+
+    const QString destinationPath = restorePath(path, snapshot.name);
+    auto *restoreAction = snapshotMenu->addAction(
+        QIcon::fromTheme(QStringLiteral("document-save-as")),
+        i18nc("@action:inmenu", "Restore"));
+    auto *plugin = const_cast<FileViewBtrfsSnapshotsPlugin *>(this);
+    connect(restoreAction, &QAction::triggered, plugin,
+            [plugin, historicalPath, destinationPath]() {
+              plugin->restoreSnapshot(historicalPath, destinationPath);
+            });
+
+    snapshotMenu->setDefaultAction(openAction);
+    m_snapshotMenu->addMenu(snapshotMenu);
   }
 
   if (m_snapshotMenu->actions().isEmpty()) {
