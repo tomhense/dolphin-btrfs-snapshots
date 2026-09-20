@@ -54,3 +54,47 @@ cmake --install build
 
 The KDE Extra CMake Modules, Qt6, KF6 KIO/I18n, and DolphinVcs development
 packages are required.
+
+## Permanent installation on Arch Linux
+
+Install the build dependencies:
+
+```sh
+sudo pacman -S --needed base-devel cmake ninja extra-cmake-modules \
+    qt6-base kio ki18n dolphin
+```
+
+For a system-wide installation that Dolphin finds automatically:
+
+```sh
+cmake --fresh -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build
+sudo cmake --install build
+```
+
+The plugin is installed below Qt’s plugin directory at
+`dolphin/vcs/fileviewbtrfssnapshotsplugin.so`. Restart Dolphin after
+installation. The installation can be verified with:
+
+```sh
+find /usr -path '*/dolphin/vcs/fileviewbtrfssnapshotsplugin.so' -print
+```
+
+Alternatively, install for the current user:
+
+```sh
+cmake --fresh -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+cmake --build build
+cmake --install build
+```
+
+For a user-local installation, launch Dolphin with the local Qt plugin path:
+
+```sh
+QT_PLUGIN_PATH="$HOME/.local/lib/qt6/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}" \
+    dolphin --new-instance
+```
