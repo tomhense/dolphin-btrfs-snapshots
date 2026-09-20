@@ -14,14 +14,9 @@
 
 #include <QAction>
 #include <QDateTime>
-#include <QDialog>
-#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
-#include <QFormLayout>
-#include <QLineEdit>
 #include <QMenu>
-#include <QMessageBox>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QUrl>
@@ -34,8 +29,9 @@ constexpr auto configGroup = "BtrfsSnapshots";
 constexpr auto configKey = "SnapshotDirectory";
 
 QString configuredSnapshotDirectory() {
-  const KConfigGroup group(KSharedConfig::openConfig(),
-                           QString::fromLatin1(configGroup));
+  const KConfigGroup group(
+      KSharedConfig::openConfig(QStringLiteral("dolphin-btrfsrc")),
+      QString::fromLatin1(configGroup));
   return group.readEntry(QString::fromLatin1(configKey),
                          QString::fromLatin1(snapshotDirectory));
 }
@@ -200,40 +196,6 @@ void FileViewBtrfsSnapshotsPlugin::restoreSnapshot(
                   QStringLiteral("--no-clobber"), sourcePath, destinationPath});
 }
 
-void FileViewBtrfsSnapshotsPlugin::configureSnapshotDirectory() {
-  QDialog dialog(qobject_cast<QWidget *>(parent()));
-  dialog.setWindowTitle(i18nc("@title:window", "Configure Btrfs Snapshots"));
-
-  auto *directoryEdit = new QLineEdit(configuredSnapshotDirectory(), &dialog);
-  directoryEdit->setPlaceholderText(QString::fromLatin1(snapshotDirectory));
-
-  auto *layout = new QFormLayout(&dialog);
-  layout->addRow(i18nc("@label", "Snapshot directory:"), directoryEdit);
-
-  auto *buttons = new QDialogButtonBox(
-      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  layout->addRow(buttons);
-  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-  if (dialog.exec() != QDialog::Accepted) {
-    return;
-  }
-
-  const QString directory = QDir::cleanPath(directoryEdit->text().trimmed());
-  if (!QDir::isAbsolutePath(directory)) {
-    QMessageBox::warning(
-        &dialog, i18nc("@title:window", "Invalid Snapshot Directory"),
-        i18nc("@info", "The snapshot directory must be an absolute path."));
-    return;
-  }
-
-  KConfigGroup group(KSharedConfig::openConfig(),
-                     QString::fromLatin1(configGroup));
-  group.writeEntry(QString::fromLatin1(configKey), directory);
-  group.sync();
-}
-
 QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
     const KFileItemList &items) const {
   // A single target keeps every menu entry unambiguous. It also avoids
@@ -305,15 +267,9 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
     m_snapshotMenu->addMenu(snapshotMenu);
   }
 
-  if (!m_snapshotMenu->actions().isEmpty()) {
-    m_snapshotMenu->addSeparator();
+  if (m_snapshotMenu->actions().isEmpty()) {
+    return {};
   }
-  auto *configureAction = m_snapshotMenu->addAction(
-      QIcon::fromTheme(QStringLiteral("configure")),
-      i18nc("@action:inmenu", "Configure Btrfs Snapshots…"));
-  auto *plugin = const_cast<FileViewBtrfsSnapshotsPlugin *>(this);
-  connect(configureAction, &QAction::triggered, plugin,
-          [plugin]() { plugin->configureSnapshotDirectory(); });
 
   return {m_snapshotMenu->menuAction()};
 }

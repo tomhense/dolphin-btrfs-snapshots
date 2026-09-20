@@ -11,9 +11,16 @@ The initial layout is intentionally limited to:
 /btrbk_snapshots/ROOT.YYYYMMDDTHHMM
 ```
 
-The snapshot directory defaults to `/btrbk_snapshots` and can be changed via
-**Btrfs Snapshots → Configure Btrfs Snapshots…** in Dolphin. The configured
-path must be absolute.
+The snapshot directory defaults to `/btrbk_snapshots` and can be changed in
+the KDE config file `~/.config/dolphin-btrfsrc`:
+
+```ini
+[BtrfsSnapshots]
+SnapshotDirectory=/btrbk_snapshots
+```
+
+The configured path must be absolute. `XDG_CONFIG_HOME` is honored when it is
+set.
 
 `/home/...` is looked up in the `home.*` snapshots; all other absolute paths
 are looked up in the `ROOT.*` snapshots. Only snapshots containing the
