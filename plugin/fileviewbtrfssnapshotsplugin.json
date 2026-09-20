@@ -1,0 +1,7 @@
+{
+    "KPlugin": {
+        "Name": "Btrfs Snapshots",
+        "Description": "Browse previous versions from btrbk Btrfs snapshots",
+        "Icon": "drive-harddisk"
+    }
+}
