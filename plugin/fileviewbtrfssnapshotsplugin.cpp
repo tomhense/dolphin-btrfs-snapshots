@@ -19,7 +19,12 @@
 #include <QMenu>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QScrollArea>
+#include <QSizePolicy>
+#include <QToolButton>
 #include <QUrl>
+#include <QVBoxLayout>
+#include <QWidgetAction>
 
 #include <algorithm>
 
@@ -276,12 +281,29 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
   const bool liveIsDirectory = liveInfo.isDir();
   const FileVersion liveVersion{liveInfo.size(), liveInfo.lastModified()};
   QList<FileVersion> seenVersions;
+  const QList<QAction *> oldActions = m_snapshotMenu->actions();
   const QList<QMenu *> oldMenus = m_snapshotMenu->findChildren<QMenu *>(
       QString(), Qt::FindDirectChildrenOnly);
   m_snapshotMenu->clear();
+  for (QAction *action : oldActions) {
+    delete action;
+  }
   for (QMenu *menu : oldMenus) {
     delete menu;
   }
+
+  auto *scrollArea = new QScrollArea;
+  scrollArea->setFrameShape(QFrame::NoFrame);
+  scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  scrollArea->setWidgetResizable(true);
+  scrollArea->setMaximumHeight(400);
+  scrollArea->setMinimumWidth(320);
+
+  auto *scrollWidget = new QWidget;
+  auto *scrollLayout = new QVBoxLayout(scrollWidget);
+  scrollLayout->setContentsMargins(0, 0, 0, 0);
+  scrollLayout->setSpacing(0);
 
   for (const Snapshot &snapshot :
        availableSnapshots(path, configuredSnapshotDirectory())) {
@@ -333,12 +355,30 @@ QList<QAction *> FileViewBtrfsSnapshotsPlugin::snapshotActions(
             });
 
     snapshotMenu->setDefaultAction(openAction);
-    m_snapshotMenu->addMenu(snapshotMenu);
+    auto *snapshotButton = new QToolButton(scrollWidget);
+    snapshotButton->setText(i18nc("@title:menu", "%1 (%2)",
+                                  displayTimestamp(snapshot.timestamp),
+                                  snapshot.name));
+    snapshotButton->setIcon(
+        QIcon::fromTheme(QStringLiteral("document-open-recent")));
+    snapshotButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    snapshotButton->setSizePolicy(QSizePolicy::Expanding,
+                                  QSizePolicy::Preferred);
+    snapshotButton->setMenu(snapshotMenu);
+    snapshotButton->setPopupMode(QToolButton::InstantPopup);
+    scrollLayout->addWidget(snapshotButton);
   }
 
-  if (m_snapshotMenu->actions().isEmpty()) {
+  if (scrollLayout->count() == 0) {
+    delete scrollArea;
     return {};
   }
+
+  scrollLayout->addStretch();
+  scrollArea->setWidget(scrollWidget);
+  auto *scrollAction = new QWidgetAction(m_snapshotMenu);
+  scrollAction->setDefaultWidget(scrollArea);
+  m_snapshotMenu->addAction(scrollAction);
 
   return {m_snapshotMenu->menuAction()};
 }
